@@ -1,0 +1,105 @@
+clear sound
+[x_s, fs] = audioread("p232_170.wav");
+[x_n, ~] = audioread("background_noise_1.wav");
+x_n = mean(x_n, 2);
+
+len_s = length(x_s);
+noise = x_n(1:len_s);
+H = fftshift(fft(noise));
+G = fftshift(fft(x_s));
+
+gamma = 0;
+mag = abs(H).^2;
+conjugate = conj(H);
+notFound = 1;
+err = 1e10; % initialize error to be very large so condition isn't
+eps = 0.00001;
+while notFound
+    SNR = snr(x_s, noise);
+    Hnew = conjugate./(mag + gamma/SNR);
+    Fnew = Hnew.*G;
+    fnew = abs(ifft(ifftshift(Fnew)));
+    prev_err = err;
+    % calculate error of new image and original image
+    err = mean(sqrt(abs(fnew - x_s)), "all");
+    if (abs(err - prev_err) < eps)
+        break;
+    end
+    gamma = gamma + 0.01;
+end
+%%
+[clean, fs] = audioread("p232_170_clean.wav");
+[noisy, ~] = audioread("p232_170.wav");
+
+F = fft(clean);
+G = fft(noisy);
+H = G./F;
+
+gamma = 0;
+mag = abs(H).^2;
+conjugate = conj(H);
+notFound = 1;
+err = 1e10; % initialize error to be very large so condition isn't
+eps = 0.00001;
+while notFound
+    SNR = snr(clean, noisy);
+    Hnew = conjugate./(mag + gamma/SNR);
+    Fnew = Hnew.*G;
+    fnew = abs(ifft((Fnew)));
+    prev_err = err;
+    % calculate error of new image and original image
+    err = mean(sqrt(abs(fnew - x_s)), "all");
+    if (abs(err - prev_err) < eps)
+        break;
+    end
+    gamma = gamma + 0.01;
+end
+%%
+%   Copyright 2020: DSPCookbook
+clc, clear, close all
+
+% Constants in simuation
+[x, fs] = audioread("p232_170.wav");
+N       = length(x);
+varu    = 1;
+varv    = 1000;
+a       = 0.999;
+
+% Step 1
+M       = 1000;
+tau     = (0:(M-1))';
+
+% Step 2
+rvv     = zeros(M,1);
+rvv(1)  = varv;             % Autocorrelation is a Kronecker Delta function
+
+% Step 3
+rss     = (a.^abs(tau))/(1-a^2)*varu;
+
+% Step 4
+rxx     = rss + rvv;        % Autocorrelation vector
+
+% Step 5
+Rxx     = toeplitz(rxx);    % Autocorrelation matrix
+
+% Step 6
+rxs     = rss;
+
+% Step 7
+w       = inv(Rxx)*rxs;
+
+% Step 8
+for n = M:N
+    y(n,1) = w'*flipud(x((n-M+1):n));
+end
+
+%% Plot result
+plot(x)
+grid, xlabel('time index n'), ylabel('Amplitude'), hold on
+plot(y)
+legend('x(n)','y(n)')
+title('Wiener filtering')
+%%
+[clean, fs] = audioread("p232_170_clean.wav");
+[noisy, ~] = audioread("p232_170.wav");
+[acf, lags] = autocorr(clean);
